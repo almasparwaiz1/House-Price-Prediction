@@ -5,7 +5,7 @@ import joblib
 import os
 
 # --- Define Base Directory and Absolute Paths ---
-BASE_DIR = r"F:\AI and Data Science Projects\house price prediction app\Streamlit_Frontend"
+BASE_DIR = r"Streamlit_Frontend"
 
 # --- Configuration and Load Resources ---
 @st.cache_resource
