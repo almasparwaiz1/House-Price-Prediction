@@ -47,9 +47,8 @@ def load_resources():
         status_placeholder.info(f"⏳ Processing: {current_loading_file} ...")
         loaded_address_map = joblib.load(address_map_path)
         
-        # --- CRITICAL FIX: Ensure address_mapping is treated as a pure Python dict ---
+        # Ensure address_mapping is treated as a pure Python dict
         if isinstance(loaded_address_map, (pd.Series, pd.DataFrame)):
-            # If it's a DataFrame, assume address is index and target encoding is the first column
             if isinstance(loaded_address_map, pd.DataFrame):
                 address_mapping = loaded_address_map.iloc[:, 0].to_dict()
             else:
@@ -76,9 +75,7 @@ def load_resources():
         st.markdown(
             f"""
             ### Broken File Spotted: `{current_loading_file}`
-            
             The script stopped while trying to handle **`{current_loading_file}`**.
-            
             *Technical Error details:* `{str(e)}`
             """
         )
@@ -92,7 +89,9 @@ model, feature_names, kmeans_model, address_mapping, global_mean_price_log = loa
 # --- Helper Functions for Preprocessing ---
 def preprocess_inputs(user_inputs, feature_names, kmeans_model, address_mapping, global_mean_price_log):
     input_df = pd.DataFrame([user_inputs])
-    processed_input = pd.DataFrame(0, index=[0], columns=feature_names)
+    
+    # FIX: Initialize with 0.0 (float) instead of 0 (int) to prevent type enforcement errors with coordinates
+    processed_input = pd.DataFrame(0.0, index=[0], columns=feature_names)
 
     for col in ['BHK_NO.', 'SQUARE_FT', 'LONGITUDE', 'LATITUDE']:
         if col in input_df.columns:
@@ -114,7 +113,6 @@ def preprocess_inputs(user_inputs, feature_names, kmeans_model, address_mapping,
     coords = np.array([[user_inputs['LONGITUDE'], user_inputs['LATITUDE']]])
     processed_input.loc[0, 'Location_Cluster'] = kmeans_model.predict(coords)[0]
 
-    # With address_mapping guaranteed to be a dict, .get() will function perfectly
     address = user_inputs['ADDRESS']
     processed_input.loc[0, 'ADDRESS_Target_Encoded'] = address_mapping.get(address, global_mean_price_log)
     
