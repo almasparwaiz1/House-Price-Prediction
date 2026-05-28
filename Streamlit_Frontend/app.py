@@ -4,6 +4,9 @@ import numpy as np
 import joblib
 import os
 
+# 1. CRITICAL FIX: st.set_page_config MUST be the very first Streamlit command executed
+st.set_page_config(page_title="House Price Predictor", layout="wide", initial_sidebar_state="expanded")
+
 # --- Define Base Directory and Absolute Paths ---
 BASE_DIR = r"Streamlit_Frontend"
 
@@ -42,30 +45,41 @@ def load_resources():
         
         current_loading_file = "address_mapping.joblib"
         status_placeholder.info(f"⏳ Processing: {current_loading_file} ...")
-        address_mapping = joblib.load(address_map_path)
+        loaded_address_map = joblib.load(address_map_path)
+        
+        # --- CRITICAL FIX: Ensure address_mapping is treated as a pure Python dict ---
+        if isinstance(loaded_address_map, (pd.Series, pd.DataFrame)):
+            # If it's a DataFrame, assume address is index and target encoding is the first column
+            if isinstance(loaded_address_map, pd.DataFrame):
+                address_mapping = loaded_address_map.iloc[:, 0].to_dict()
+            else:
+                address_mapping = loaded_address_map.to_dict()
+        elif isinstance(loaded_address_map, dict):
+            address_mapping = loaded_address_map
+        else:
+            address_mapping = dict(loaded_address_map)
         
         current_loading_file = "global_mean_price_log.joblib"
         status_placeholder.info(f"⏳ Processing: {current_loading_file} ...")
-        global_mean_price_log = joblib.load(global_mean_path)
+        loaded_mean = joblib.load(global_mean_path)
+        
+        # Ensure global_mean_price_log is a pure Python scalar float
+        if isinstance(loaded_mean, (pd.Series, pd.DataFrame)):
+            global_mean_price_log = float(loaded_mean.squeeze().item()) if not loaded_mean.empty else 0.0
+        else:
+            global_mean_price_log = float(loaded_mean)
         
         status_placeholder.empty() # Clear if successful
 
     except Exception as e:
-        st.error("❌ **Pickle Serialization / Corruption Error Detected!**")
+        st.error("❌ **Pickle / Joblib Serialization Error Detected!**")
         st.markdown(
             f"""
             ### Broken File Spotted: `{current_loading_file}`
             
-            The script stopped while trying to deserialize **`{current_loading_file}`**. The file data is incomplete or unreadable.
+            The script stopped while trying to handle **`{current_loading_file}`**.
             
-            **How to quickly fix this specific artifact:**
-            1. Go back to the Notebook where you performed KMeans clustering.
-            2. Locate your trained KMeans object and export it fresh using:
-               ```python
-               joblib.dump(kmeans, 'kmeans_object.joblib', compress=3)
-               ```
-            3. Replace the old file inside `{BASE_DIR}` with your freshly saved one.
-            4. Click the **three dots $(\dots)$** in the top-right corner of this app, click **"Clear cache"**, and refresh!
+            *Technical Error details:* `{str(e)}`
             """
         )
         st.stop()
@@ -100,15 +114,15 @@ def preprocess_inputs(user_inputs, feature_names, kmeans_model, address_mapping,
     coords = np.array([[user_inputs['LONGITUDE'], user_inputs['LATITUDE']]])
     processed_input.loc[0, 'Location_Cluster'] = kmeans_model.predict(coords)[0]
 
+    # With address_mapping guaranteed to be a dict, .get() will function perfectly
     address = user_inputs['ADDRESS']
     processed_input.loc[0, 'ADDRESS_Target_Encoded'] = address_mapping.get(address, global_mean_price_log)
+    
     processed_input = processed_input[feature_names]
 
     return processed_input
 
-# --- Streamlit App UI Configuration ---
-st.set_page_config(page_title="House Price Predictor", layout="wide", initial_sidebar_state="expanded")
-
+# --- Streamlit App Styling ---
 custom_css = """
 <style>
     .stApp { background-color: #F4F6F8; }
